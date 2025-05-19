@@ -122,15 +122,15 @@ const forgotPassword = async (req, res) => {
     .digest("hex");
 
   //token süresini belirliyoruz
-  user.resetPasswordExpire = new Date(Date.now() + 30 * 60 * 1000);
+  user.resetPasswordExpire = Date.now() + 30 * 60 * 1000; // 30 dakika
   await user.save({ validateBeforeSave: false });
 
   //şifre sıfırlama linki:http://localhost:4000/user/resetpassword/123456789
-  const resetUrl = `${req.protocol}://${req.get(
+  const passwordUrl = `${req.protocol}://${req.get(
     "host"
   )}/user/resetpassword/${resetToken}`;
 
-  const message = `Şifre sıfırlama talebinde bulundunuz. Lütfen aşağıdaki linke tıklayarak şifrenizi sıfırlayın:\n\n ${resetUrl}`;
+  const message = `Şifre sıfırlama talebinde bulundunuz. Lütfen aşağıdaki linke tıklayarak şifrenizi sıfırlayın:\n\n ${passwordUrl}`;
 
   try {
     //nodemailer ile mail gönderme işlemi
@@ -171,12 +171,55 @@ const forgotPassword = async (req, res) => {
   }
 };
 
-//!şifre sıfırlama işlemi
+//!şifre sıfırlama ve yenileme işlemi
 const resetPassword = async (req, res) => {
+  // kullanıcıdan gelen user bilgilerini alıyoruz
   const resetPasswordToken = crypto
     .createHash("sha256")
     .update(req.params.token)
     .digest("hex");
+
+  // token süresini kontrol ediyoruz
+  const user = await User.findOne({
+    resetPasswordToken,
+    resetPasswordExpire: { $gt: Date.now() },
+  });
+  if (!user) {
+    return res.status(400).json({
+      success: false,
+      message: "Token geçersiz veya süresi dolmuş!",
+    });
+  }
+
+  //şifre sıfırlama işlemi
+  user.password = req.body.password;
+  user.resetPasswordToken = undefined;
+  user.resetPasswordExpire = undefined;
+  await user.save();
+
+  //token oluşturma
+  const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
+    expiresIn: "1h",
+  });
+  //cookie oluşturma
+  const cookieOptions = {
+    expires: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+    httpOnly: true,
+  };
+  res.status(200).cookie("token", token, cookieOptions).json({
+    success: true,
+    message: "Şifre başarıyla sıfırlandı!",
+    user,
+  });
+};
+
+//!profil detayı işlemi
+const userDetail = async (req, res, next) => {
+  const user = await User.findById(req.params.id);
+  res.status(200).json({
+    success: true,
+    user,
+  });
 };
 
 module.exports = {
@@ -185,4 +228,5 @@ module.exports = {
   logoutUser,
   forgotPassword,
   resetPassword,
+  userDetail,
 };

@@ -61,6 +61,7 @@ const createProduct = async (req, res) => {
     });
   }
   req.body.images = allImages;
+  req.body.user = req.user.id;
 
   const { name, price, description, stock, category, images } = req.body;
 
@@ -71,6 +72,7 @@ const createProduct = async (req, res) => {
     stock,
     category,
     images,
+    user: req.user.id,
   });
 
   res.status(201).json({
@@ -142,7 +144,7 @@ const updateProduct = async (req, res) => {
   });
 };
 
-// Create new review or update the review
+//! Create new review or update the review
 const createReview = async (req, res, next) => {
   const { productId, rating, comment } = req.body;
   const review = {
