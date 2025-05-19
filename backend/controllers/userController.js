@@ -1,9 +1,16 @@
 const User = require("../models/user");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const cloudinary = require("cloudinary").v2;
 
 //kayıt olma işlemi
 const registerUser = async (req, res) => {
+  const avatar = await cloudinary.uploader.upload(req.body.avatar, {
+    folder: "avatars",
+    width: 150,
+    crop: "scale",
+  });
+
   const { name, email, password } = req.body;
 
   // kullanıcıdan gelen user bilgilerini alıyoruz
@@ -23,6 +30,10 @@ const registerUser = async (req, res) => {
       name,
       email,
       password: hashedPassword,
+      avatar: {
+        public_id: avatar.public_id,
+        url: avatar.secure_url,
+      },
     });
 
     //token oluşturma
@@ -93,7 +104,6 @@ const logoutUser = async (req, res) => {
 };
 
 //şifre sıfırlama işlemi
-
 const forgotPassword = async (req, res) => {};
 
 //şifre sıfırlama işlemi
