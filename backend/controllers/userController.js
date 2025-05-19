@@ -2,8 +2,10 @@ const User = require("../models/user");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const cloudinary = require("cloudinary").v2;
+const crypto = require("crypto");
+const nodemailer = require("nodemailer");
 
-//kayıt olma işlemi
+//!kayıt olma işlemi
 const registerUser = async (req, res) => {
   const avatar = await cloudinary.uploader.upload(req.body.avatar, {
     folder: "avatars",
@@ -55,7 +57,7 @@ const registerUser = async (req, res) => {
   }
 };
 
-//giriş yapma işlemi
+//!giriş yapma işlemi
 const loginUser = async (req, res) => {
   const { email, password } = req.body;
 
@@ -89,7 +91,7 @@ const loginUser = async (req, res) => {
   });
 };
 
-//çıkış yapma işlemi
+//!çıkış yapma işlemi
 const logoutUser = async (req, res) => {
   //token sürelerini belirleyip,  cookiden silme işlemi yapacağız (kullanıcıyı çıkış yaptırıyoruz)
   const cookieOptions = {
@@ -103,11 +105,79 @@ const logoutUser = async (req, res) => {
   });
 };
 
-//şifre sıfırlama işlemi
-const forgotPassword = async (req, res) => {};
+//!şifre sıfırlama işlemi
+const forgotPassword = async (req, res) => {
+  //kullanıcıdan gelen user bilgilerini alıyoruz
+  const user = await User.findOne({ email: req.body.email });
+  if (!user) {
+    return res.status(500).json({ message: "User not found!" });
+  }
 
-//şifre sıfırlama işlemi
-const resetPassword = async (req, res) => {};
+  //token oluşturma
+  const resetToken = crypto.randomBytes(20).toString("hex");
+
+  user.resetPasswordToken = crypto
+    .createHash("sha256")
+    .update(resetToken)
+    .digest("hex");
+
+  //token süresini belirliyoruz
+  user.resetPasswordExpire = new Date(Date.now() + 30 * 60 * 1000);
+  await user.save({ validateBeforeSave: false });
+
+  //şifre sıfırlama linki:http://localhost:4000/user/resetpassword/123456789
+  const resetUrl = `${req.protocol}://${req.get(
+    "host"
+  )}/user/resetpassword/${resetToken}`;
+
+  const message = `Şifre sıfırlama talebinde bulundunuz. Lütfen aşağıdaki linke tıklayarak şifrenizi sıfırlayın:\n\n ${resetUrl}`;
+
+  try {
+    //nodemailer ile mail gönderme işlemi
+    const transporter = nodemailer.createTransport({
+      port: 465,
+      host: "smtp.gmail.com",
+      service: "gmail",
+      auth: {
+        user: process.env.GMAIL_USER,
+        pass: process.env.GMAIL_PASS,
+      },
+      secure: true,
+    });
+
+    const mailData = {
+      from: process.env.GMAIL_USER,
+      to: req.body.email,
+      subject: "Şifre Sıfırlama Talebi",
+      text: message,
+    };
+
+    await transporter.sendMail(mailData);
+
+    res.status(200).json({
+      success: true,
+      message:
+        "Şifre sıfırlama linki başarıyla gönderildi ,mailinizi kontrol edin!",
+    });
+  } catch (error) {
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpire = undefined;
+    await user.save({ validateBeforeSave: false });
+
+    return res.status(500).json({
+      success: false,
+      message: "Mail gönderilirken bir hata oluştu!",
+    });
+  }
+};
+
+//!şifre sıfırlama işlemi
+const resetPassword = async (req, res) => {
+  const resetPasswordToken = crypto
+    .createHash("sha256")
+    .update(req.params.token)
+    .digest("hex");
+};
 
 module.exports = {
   registerUser,
