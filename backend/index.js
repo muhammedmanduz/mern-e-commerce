@@ -4,8 +4,16 @@ const bodyparser = require("body-parser");
 const cookieParser = require("cookie-parser");
 const dotenv = require("dotenv");
 const db = require("./config/db");
+const productRoutes = require("./routes/productRoutes.js");
+const { v2: cloudinary } = require("cloudinary");
 
 dotenv.config();
+
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
 const app = express();
 app.use(cors());
@@ -23,9 +31,8 @@ app.use(
 );
 
 app.use(cookieParser());
-app.get("/products", (req, res) => {
-  res.status(200).json({ message: "Hello from the server" });
-});
+
+app.use("/products", productRoutes);
 
 db();
 
